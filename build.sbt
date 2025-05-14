@@ -1,11 +1,12 @@
 import com.typesafe.tools.mima.core._
+import org.typelevel.sbt.gha.WorkflowStep.Run
+import org.typelevel.sbt.gha.WorkflowStep.Sbt
 
 val Scala213 = "2.13.16"
-val Scala212 = "2.12.20"
-val Scala3 = "3.3.6"
+val Scala3 = "3.3.5"
 
-ThisBuild / tlBaseVersion := "2.7"
-ThisBuild / crossScalaVersions := Seq(Scala213, Scala212, Scala3)
+ThisBuild / tlBaseVersion := "2.8"
+ThisBuild / crossScalaVersions := Seq(Scala213, Scala3)
 ThisBuild / scalaVersion := Scala213
 ThisBuild / startYear := Some(2018)
 ThisBuild / developers := List(
@@ -26,10 +27,38 @@ ThisBuild / githubWorkflowJavaVersions := Seq(JavaSpec.temurin("8"), JavaSpec.te
 
 ThisBuild / tlVersionIntroduced := Map("3" -> "2.1.1")
 
-val catsV = "2.11.0"
-val catsEffectV = "3.6.1"
+ThisBuild / githubOwner := "igor-ramazanov-typelevel"
+ThisBuild / githubRepository := "log4cats"
+
+ThisBuild / githubWorkflowPublishPreamble := List.empty
+ThisBuild / githubWorkflowUseSbtThinClient := true
+ThisBuild / githubWorkflowPublish := List(
+  Run(
+    commands = List("echo \"$PGP_SECRET\" | gpg --import"),
+    id = None,
+    name = Some("Import PGP key"),
+    env = Map("PGP_SECRET" -> "${{ secrets.PGP_SECRET }}"),
+    params = Map(),
+    timeoutMinutes = None,
+    workingDirectory = None
+  ),
+  Sbt(
+    commands = List("+ publish"),
+    id = None,
+    name = Some("Publish"),
+    cond = None,
+    env = Map("GITHUB_TOKEN" -> "${{ secrets.GB_TOKEN }}"),
+    params = Map.empty,
+    timeoutMinutes = None,
+    preamble = true
+  )
+)
+ThisBuild / gpgWarnOnFailure := false
+
+val catsV = "2.13.0"
+val catsEffectV = "3.7-4972921"
 val slf4jV = "1.7.36"
-val munitCatsEffectV = "2.1.0"
+val munitCatsEffectV = "2.2.0-M1"
 val logbackClassicV = "1.2.13"
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
@@ -52,7 +81,10 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     libraryDependencies ++= {
       if (tlIsScala3.value) Seq.empty
       else Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value % Provided)
-    }
+    },
+    publishTo := githubPublishTo.value,
+    publishConfiguration := publishConfiguration.value.withOverwrite(true),
+    publishLocalConfiguration := publishLocalConfiguration.value.withOverwrite(true)
   )
   .nativeSettings(commonNativeSettings)
 
@@ -64,7 +96,10 @@ lazy val testing = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     libraryDependencies ++= Seq(
       "org.typelevel" %%% "cats-effect" % catsEffectV,
       "ch.qos.logback"                  % "logback-classic" % logbackClassicV % Test
-    )
+    ),
+    publishTo := githubPublishTo.value,
+    publishConfiguration := publishConfiguration.value.withOverwrite(true),
+    publishLocalConfiguration := publishLocalConfiguration.value.withOverwrite(true)
   )
   .nativeSettings(commonNativeSettings)
 
@@ -72,7 +107,10 @@ lazy val noop = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(commonSettings)
   .dependsOn(core)
   .settings(
-    name := "log4cats-noop"
+    name := "log4cats-noop",
+    publishTo := githubPublishTo.value,
+    publishConfiguration := publishConfiguration.value.withOverwrite(true),
+    publishLocalConfiguration := publishLocalConfiguration.value.withOverwrite(true)
   ) // migrated to core, so we check that core is compatible with old noop artifacts
   .jvmSettings(
     mimaCurrentClassfiles := (core.jvm / Compile / classDirectory).value
@@ -98,7 +136,10 @@ lazy val slf4j = project
     libraryDependencies ++= {
       if (tlIsScala3.value) Seq.empty
       else Seq("org.scala-lang" % "scala-reflect" % scalaVersion.value % Provided)
-    }
+    },
+    publishTo := githubPublishTo.value,
+    publishConfiguration := publishConfiguration.value.withOverwrite(true),
+    publishLocalConfiguration := publishLocalConfiguration.value.withOverwrite(true)
   )
 
 lazy val `js-console` = project
@@ -106,10 +147,13 @@ lazy val `js-console` = project
   .dependsOn(core.js)
   .settings(
     name := "log4cats-js-console",
-    tlVersionIntroduced := List("2.12", "2.13", "3").map(_ -> "2.6.0").toMap,
+    tlVersionIntroduced := List("2.13", "3").map(_ -> "2.6.0").toMap,
     libraryDependencies ++= Seq(
       "org.typelevel" %%% "cats-effect-kernel" % catsEffectV
-    )
+    ),
+    publishTo := githubPublishTo.value,
+    publishConfiguration := publishConfiguration.value.withOverwrite(true),
+    publishLocalConfiguration := publishLocalConfiguration.value.withOverwrite(true)
   )
   .enablePlugins(ScalaJSPlugin)
 
@@ -120,5 +164,5 @@ lazy val commonSettings = Seq(
 )
 
 lazy val commonNativeSettings = Seq(
-  tlVersionIntroduced := List("2.12", "2.13", "3").map(_ -> "2.4.1").toMap
+  tlVersionIntroduced := List("2.13", "3").map(_ -> "2.4.1").toMap
 )
